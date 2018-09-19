@@ -1,12 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2011-2016, 2020-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2011-2017 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU license.
+ * of such GNU licence.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -17,21 +16,26 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
+ * SPDX-License-Identifier: GPL-2.0
+ *
  */
+
 
 /* Include mali_kbase_dma_fence.h before checking for CONFIG_MALI_DMA_FENCE as
  * it will be set there.
  */
 #include "mali_kbase_dma_fence.h"
+
 #include <linux/atomic.h>
 #include <linux/list.h>
 #include <linux/lockdep.h>
 #include <linux/mutex.h>
-#include <linux/version.h>
+#include <linux/reservation.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/workqueue.h>
 #include <linux/ww_mutex.h>
+
 #include <mali_kbase.h>
 
 static void
@@ -55,11 +59,7 @@ static int
 kbase_dma_fence_lock_reservations(struct kbase_dma_fence_resv_info *info,
 				  struct ww_acquire_ctx *ctx)
 {
-#if (KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE)
 	struct reservation_object *content_res = NULL;
-#else
-	struct dma_resv *content_res = NULL;
-#endif
 	unsigned int content_res_idx = 0;
 	unsigned int r;
 	int err = 0;
@@ -114,8 +114,6 @@ kbase_dma_fence_unlock_reservations(struct kbase_dma_fence_resv_info *info,
 	ww_acquire_fini(ctx);
 }
 
-
-
 /**
  * kbase_dma_fence_queue_work() - Queue work to handle @katom
  * @katom: Pointer to atom for which to queue work
@@ -161,7 +159,7 @@ kbase_dma_fence_cancel_atom(struct kbase_jd_atom *katom)
 	if (katom->status == KBASE_JD_ATOM_STATE_QUEUED) {
 		/* Wait was cancelled - zap the atom */
 		katom->event_code = BASE_JD_EVENT_JOB_CANCELLED;
-		if (kbase_jd_done_nolock(katom, true))
+		if (jd_done_nolock(katom, NULL))
 			kbase_js_sched_all(katom->kctx->kbdev);
 	}
 }
@@ -193,10 +191,10 @@ kbase_dma_fence_work(struct work_struct *pwork)
 	kbase_fence_free_callbacks(katom);
 	/*
 	 * Queue atom on GPU, unless it has already completed due to a failing
-	 * dependency. Run kbase_jd_done_nolock() on the katom if it is completed.
+	 * dependency. Run jd_done_nolock() on the katom if it is completed.
 	 */
 	if (unlikely(katom->status == KBASE_JD_ATOM_STATE_COMPLETED))
-		kbase_jd_done_nolock(katom, true);
+		jd_done_nolock(katom, NULL);
 	else
 		kbase_jd_dep_clear_locked(katom);
 
@@ -205,7 +203,7 @@ out:
 }
 
 static void
-#if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0))
 kbase_dma_fence_cb(struct fence *fence, struct fence_cb *cb)
 #else
 kbase_dma_fence_cb(struct dma_fence *fence, struct dma_fence_cb *cb)
@@ -225,19 +223,12 @@ kbase_dma_fence_cb(struct dma_fence *fence, struct dma_fence_cb *cb)
 		kbase_dma_fence_queue_work(katom);
 }
 
-#if (KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE)
 static int
 kbase_dma_fence_add_reservation_callback(struct kbase_jd_atom *katom,
 					 struct reservation_object *resv,
 					 bool exclusive)
-#else
-static int
-kbase_dma_fence_add_reservation_callback(struct kbase_jd_atom *katom,
-					 struct dma_resv *resv,
-					 bool exclusive)
-#endif
 {
-#if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0))
 	struct fence *excl_fence = NULL;
 	struct fence **shared_fences = NULL;
 #else
@@ -247,14 +238,7 @@ kbase_dma_fence_add_reservation_callback(struct kbase_jd_atom *katom,
 	unsigned int shared_count = 0;
 	int err, i;
 
-#if (KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE)
-	err = reservation_object_get_fences_rcu(
-#elif (KERNEL_VERSION(5, 14, 0) > LINUX_VERSION_CODE)
-	err = dma_resv_get_fences_rcu(
-#else
-	err = dma_resv_get_fences(
-#endif
-						resv,
+	err = reservation_object_get_fences_rcu(resv,
 						&excl_fence,
 						&shared_count,
 						&shared_fences);
@@ -308,15 +292,9 @@ out:
 	return err;
 }
 
-#if (KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE)
 void kbase_dma_fence_add_reservation(struct reservation_object *resv,
 				     struct kbase_dma_fence_resv_info *info,
 				     bool exclusive)
-#else
-void kbase_dma_fence_add_reservation(struct dma_resv *resv,
-				     struct kbase_dma_fence_resv_info *info,
-				     bool exclusive)
-#endif
 {
 	unsigned int i;
 
@@ -337,7 +315,7 @@ int kbase_dma_fence_wait(struct kbase_jd_atom *katom,
 			 struct kbase_dma_fence_resv_info *info)
 {
 	int err, i;
-#if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0))
 	struct fence *fence;
 #else
 	struct dma_fence *fence;
@@ -366,17 +344,10 @@ int kbase_dma_fence_wait(struct kbase_jd_atom *katom,
 	}
 
 	for (i = 0; i < info->dma_fence_resv_count; i++) {
-#if (KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE)
 		struct reservation_object *obj = info->resv_objs[i];
-#else
-		struct dma_resv *obj = info->resv_objs[i];
-#endif
+
 		if (!test_bit(i, info->dma_fence_excl_bitmap)) {
-#if (KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE)
 			err = reservation_object_reserve_shared(obj, 1);
-#else
-			err = dma_resv_reserve_shared(obj, 0);
-#endif
 			if (err) {
 				dev_err(katom->kctx->kbdev->dev,
 					"Error %d reserving space for shared fence.\n", err);
@@ -390,11 +361,7 @@ int kbase_dma_fence_wait(struct kbase_jd_atom *katom,
 				goto end;
 			}
 
-#if (KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE)
 			reservation_object_add_shared_fence(obj, fence);
-#else
-			dma_resv_add_shared_fence(obj, fence);
-#endif
 		} else {
 			err = kbase_dma_fence_add_reservation_callback(katom, obj, true);
 			if (err) {
@@ -403,11 +370,7 @@ int kbase_dma_fence_wait(struct kbase_jd_atom *katom,
 				goto end;
 			}
 
-#if (KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE)
 			reservation_object_add_excl_fence(obj, fence);
-#else
-			dma_resv_add_excl_fence(obj, fence);
-#endif
 		}
 	}
 
