@@ -113,6 +113,5 @@ obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_DSX) += synaptics_dsx/
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_TCM) += synaptics_tcm/
 obj-$(CONFIG_TOUCHSCREEN_SEC_TS_UNIV)	+= sec_ts_univ/
 obj-$(CONFIG_TOUCHSCREEN_MELFAS_MSS100) += melfas_mss100/
-obj-$(CONFIG_TOUCHSCREEN_HIMAX_I2C_ONLY) += himax/himax_83xxx_i2c/
 obj-$(CONFIG_TOUCHSCREEN_HIMAX_SPI) += himax/himax_831xx/
 obj-$(CONFIG_TOUCHSCREEN_HIMAX_I2C) += himax/himax_831xx/
