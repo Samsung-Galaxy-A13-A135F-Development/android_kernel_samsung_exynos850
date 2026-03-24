@@ -63,8 +63,8 @@ obj-$(CONFIG_CAMERA_CIS_JN1_OBJ) += is-cis-jn1.o
 obj-$(CONFIG_CAMERA_CIS_SC501_OBJ) += is-cis-sc501.o
 obj-$(CONFIG_CAMERA_CIS_GC08A3_OBJ) += is-cis-gc08a3.o
 
-EXTRA_CFLAGS += -Idrivers/media/platform/exynos/camera
-EXTRA_CFLAGS += -Idrivers/media/platform/exynos/camera/include
-EXTRA_CFLAGS += -Idrivers/media/platform/exynos/camera/vendor
-EXTRA_CFLAGS += -Idrivers/media/platform/exynos/camera/sensor/module_framework
-EXTRA_CFLAGS += -Idrivers/media/platform/exynos/camera/sensor/
+EXTRA_CFLAGS += -I $(srctree)/drivers/media/platform/exynos/camera
+EXTRA_CFLAGS += -I $(srctree)/drivers/media/platform/exynos/camera/include
+EXTRA_CFLAGS += -I $(srctree)/drivers/media/platform/exynos/camera/vendor
+EXTRA_CFLAGS += -I $(srctree)/drivers/media/platform/exynos/camera/sensor/module_framework
+EXTRA_CFLAGS += -I $(srctree)/drivers/media/platform/exynos/camera/sensor/
