@@ -766,8 +766,10 @@ static int ovt_tcm_continued_read(struct ovt_tcm_hcd *tcm_hcd)
 		code = tcm_hcd->temp.buf[1];
 
 		if (marker != MESSAGE_MARKER) {
+#ifdef TS_CREATE_LOGSPAM
 			input_err(true, tcm_hcd->pdev->dev.parent,
 				"Incorrect header marker (0x%02x)\n", marker);
+#endif
 			UNLOCK_BUFFER(tcm_hcd->temp);
 			UNLOCK_BUFFER(tcm_hcd->in);
 			return -EIO;
@@ -1525,7 +1527,9 @@ static void ovt_tcm_polling_work(struct work_struct *work)
 
 	retval = tcm_hcd->read_message(tcm_hcd, NULL, 0);
 	if (retval < 0) {
+#ifdef TS_CREATE_LOGSPAM
 		input_err(true, tcm_hcd->pdev->dev.parent, "Failed to read message\n");
+#endif
 		if (retval == -ENXIO && tcm_hcd->hw_if->bus_io->type == BUS_SPI)
 			ovt_tcm_check_hdl(tcm_hcd, REPORT_HDL_F35);
 	}
